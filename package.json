@@ -1,0 +1,16 @@
+{
+  "name": "register-vm-reactivity-engine-monorepo",
+  "version": "0.0.0",
+  "private": true,
+  "description": "A bytecode-driven runtime engine designed for fine-grained frontend UI updates",
+  "scripts": {
+    "build": "pnpm -r build",
+    "test": "vitest run",
+    "lint": "tsc --noEmit"
+  },
+  "packageManager": "pnpm@10.18.2",
+  "devDependencies": {
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
+  }
+}
