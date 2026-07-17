@@ -1,0 +1,16 @@
+{
+  "name": "@register-vm-reactivity-engine/vm",
+  "version": "0.0.0",
+  "description": "",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "test": "vitest run",
+    "build": "tsc"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.18.2",
+  "types": "dist/index.d.ts"
+}

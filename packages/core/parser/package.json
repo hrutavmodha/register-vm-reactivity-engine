@@ -1,0 +1,19 @@
+{
+  "name": "@register-vm-reactivity-engine/parser",
+  "version": "0.0.0",
+  "description": "",
+  "main": "dist/index.js",
+  "scripts": {
+    "test": "vitest run",
+    "build": "tsc"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.18.2",
+  "types": "dist/index.d.ts",
+  "dependencies": {
+    "acorn": "^8.17.0"
+  },
+  "type": "module"
+}

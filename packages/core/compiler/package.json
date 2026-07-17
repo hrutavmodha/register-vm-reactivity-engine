@@ -1,0 +1,22 @@
+{
+  "name": "@register-vm-reactivity-engine/compiler",
+  "version": "0.0.0",
+  "description": "",
+  "main": "dist/index.js",
+  "scripts": {
+    "test": "vitest run",
+    "build": "tsc"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.18.2",
+  "types": "dist/index.d.ts",
+  "dependencies": {
+    "@register-vm-reactivity-engine/parser": "workspace:*",
+    "@register-vm-reactivity-engine/vm": "workspace:*",
+    "acorn": "^8.11.3",
+    "estree-walker": "^3.0.3"
+  },
+  "type": "module"
+}
