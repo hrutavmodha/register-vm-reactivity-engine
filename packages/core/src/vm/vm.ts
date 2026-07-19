@@ -272,6 +272,14 @@ export class DriftJSVM {
   }
 }
 
+export interface DriftJSComponent {
+  program: VMProgram;
+  ast?: any[];
+  mount?: (target: HTMLElement) => DriftJSVM;
+}
+
+export type DriftComponent = DriftJSComponent;
+
 /**
  * Convenience function to create and mount a DriftJSVM instance.
  *
@@ -283,4 +291,18 @@ export function mountApp(program: VMProgram, rootElement: HTMLElement): DriftJSV
   const vm = new DriftJSVM(program, rootElement);
   vm.mount();
   return vm;
+}
+
+/**
+ * Mounts a DriftComponent into a target HTML element.
+ *
+ * @param component - The component containing compiled program bytecode.
+ * @param target - Target HTML element to mount into.
+ * @returns Mounted DriftJSVM instance.
+ */
+export function mount(component: DriftComponent, target: HTMLElement): DriftJSVM {
+  if (typeof component.mount === 'function') {
+    return component.mount(target);
+  }
+  return mountApp(component.program, target);
 }

@@ -1,4 +1,5 @@
 import type { Plugin } from 'vite';
+import { parseTemplate, compile } from 'driftjs';
 
 /**
  * Options for the DriftJS Vite plugin.
@@ -11,7 +12,7 @@ export interface DriftPluginOptions {
 }
 
 /**
- * Vite plugin for compiling .drift single-file component templates into reactive VM bytecode.
+ * Vite plugin for compiling .drift single-file component templates into reactive VM bytecode AOT at build time.
  *
  * @param options - Plugin configuration options.
  * @returns Vite Plugin object.
@@ -27,17 +28,39 @@ export function driftPlugin(options: DriftPluginOptions = {}): Plugin {
         return null;
       }
 
+      // 1. Parse template AST and compile bytecode program AOT at build time
+      const ast = parseTemplate(code);
+      const program = compile(ast);
+
+      // 2. Serialize bytecode Uint32Array
+      const bytecodeArray = Array.from(program.bytecode);
+
+      // 3. Serialize constants (functions serialized as function expressions)
+      const serializedConstants = program.constants.map(c => {
+        if (typeof c === 'function') {
+          return c.toString();
+        }
+        return JSON.stringify(c);
+      });
+
       const jsCode = `
-import { mountApp, parseTemplate, compile } from '@register-vm-reactivity-engine/core';
+import { mountApp } from 'driftjs';
 
-const source = ${JSON.stringify(code)};
+export const program = {
+  bytecode: new Uint32Array([${bytecodeArray.join(', ')}]),
+  constants: [${serializedConstants.join(', ')}]
+};
 
-export const ast = parseTemplate(source);
-export const program = compile(ast);
-
-export default function mount(target) {
+export const mount = function mount(target) {
   return mountApp(program, target);
-}
+};
+
+const component = {
+  program,
+  mount
+};
+
+export default component;
 `;
 
       return {

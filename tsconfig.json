@@ -2,9 +2,9 @@
   // Visit https://aka.ms/tsconfig to read more about this file
   "compilerOptions": {
     "paths": {
-      "@register-vm-reactivity-engine/core": ["./packages/core/src/index.ts"],
-      "@register-vm-reactivity-engine/core/*": ["./packages/core/src/*"],
-      "@register-vm-reactivity-engine/vite-plugin": ["./packages/vite-plugin/src/index.ts"]
+      "driftjs": ["./packages/core/src/index.ts"],
+      "driftjs/*": ["./packages/core/src/*"],
+      "vite-plugin-drift": ["./packages/vite-plugin/src/index.ts"]
     },
 
     // Environment Settings

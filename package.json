@@ -1,5 +1,5 @@
 {
-  "name": "register-vm-reactivity-engine-monorepo",
+  "name": "driftjs-monorepo",
   "version": "0.0.0",
   "private": true,
   "description": "A bytecode-driven runtime engine designed for fine-grained frontend UI updates",

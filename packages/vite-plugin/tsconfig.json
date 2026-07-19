@@ -3,7 +3,10 @@
   "compilerOptions": {
     "rootDir": "./src",
     "outDir": "./dist",
-    "noEmit": false
+    "noEmit": false,
+    "paths": {
+      "driftjs": ["../core/dist/index.d.ts"]
+    }
   },
   "include": ["src/**/*"]
 }

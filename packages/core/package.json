@@ -1,7 +1,7 @@
 {
-  "name": "@register-vm-reactivity-engine/core",
+  "name": "driftjs",
   "version": "0.0.0",
-  "description": "Core reactivity engine containing Parser, Compiler, and VM modules",
+  "description": "A bytecode-driven runtime reactivity engine",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {
