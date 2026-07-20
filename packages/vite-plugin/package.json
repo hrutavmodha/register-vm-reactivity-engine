@@ -11,7 +11,7 @@
     "driftjs": "workspace:*"
   },
   "peerDependencies": {
-    "vite": "^7.0.0"
+    "vite": ">=7.0.0"
   },
   "type": "module"
 }

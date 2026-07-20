@@ -3,6 +3,7 @@ import { Opcodes, type Opcode } from './isa.js';
 export interface VMProgram {
   bytecode: Uint32Array;
   constants: any[];
+  updateBlockOffset?: number;
 }
 
 /**
@@ -16,7 +17,9 @@ export class DriftJSVM {
   private callStack: number[];
   private pc: number;
   private dirtyMask: number = ~0; // ~0 means all registers dirty initially
-  private prevRegBuffer: any[] = new Array(32).fill(null);
+  private prevRegBuffer: any[];
+  private updateBlockOffset: number = 0;
+  private updatePending: boolean = false;
   
   private eventDelegationTable: Map<string, number>;
   private registeredEvents: Map<string, (e: Event) => void>;
@@ -33,9 +36,11 @@ export class DriftJSVM {
   ) {
     this.bytecode = this.program.bytecode;
     this.constants = this.program.constants;
+    this.updateBlockOffset = this.program.updateBlockOffset ?? 0;
     this.nodes = [];
     const maxRegs = Math.max(256, this.computeMaxRegisterCount(this.bytecode));
     this.registers = new Array(maxRegs).fill(null);
+    this.prevRegBuffer = new Array(maxRegs).fill(null);
     this.callStack = [];
     this.pc = 0;
     this.eventDelegationTable = new Map();
@@ -87,19 +92,40 @@ export class DriftJSVM {
   }
 
   /**
+   * Marks a register as dirty and schedules a microtask UI update frame.
+   *
+   * @param regIdx - Index of the register that was mutated.
+   */
+  public markDirty(regIdx: number): void {
+    if (this.dirtyMask === ~0) {
+      this.dirtyMask = 0;
+    }
+    this.dirtyMask |= (1 << (regIdx % 32));
+    this.requestUpdate();
+  }
+
+  /**
+   * Schedules a microtask DOM update frame if an update is not already pending.
+   */
+  public requestUpdate(): void {
+    if (this.dirtyMask === 0) {
+      this.dirtyMask = ~0;
+    }
+    if (this.updatePending) return;
+    this.updatePending = true;
+    queueMicrotask(() => {
+      this.updatePending = false;
+      this.dispatchEvent(this.updateBlockOffset);
+    });
+  }
+
+  /**
    * Mounts the program and executes the initial instructions.
    */
   public mount(): void {
     this.dirtyMask = ~0;
     this.pc = 0;
     this.execute();
-
-    // Pre-warm thunk function constants eagerly to force JIT compilation at mount time
-    for (const c of this.constants) {
-      if (typeof c === 'function') {
-        try { c(this.registers); } catch (_) {}
-      }
-    }
   }
 
   /**
@@ -113,6 +139,7 @@ export class DriftJSVM {
     this.eventDelegationTable.clear();
     this.nodes.fill(null);
     this.registers.fill(null);
+    this.prevRegBuffer.fill(null);
     this.callStack.length = 0;
     this.rootElement.innerHTML = '';
   }
@@ -150,33 +177,34 @@ export class DriftJSVM {
           break;
 
         case Opcodes.EXEC_THUNK: {
-          for (let i = 0; i < 32; i++) {
-            prevRegBuffer[i] = registers[i];
-          }
-          registers[a] = constants[b](registers);
-          let mask = 0;
-          for (let i = 0; i < 32; i++) {
-            if (registers[i] !== prevRegBuffer[i]) {
-              mask |= (1 << i);
-            }
-          }
-          if (mask !== 0) {
-            this.dirtyMask = mask;
-          }
-          break;
-        }
-
-        case Opcodes.EXEC_THUNK_GUARDED: {
           const destReg = a;
           const thunkIdx = b;
           const depMask = c;
 
-          if (this.dirtyMask !== ~0 && depMask !== 0 && (this.dirtyMask & depMask) === 0) {
+          if (depMask !== 0 && this.dirtyMask !== ~0 && (this.dirtyMask & depMask) === 0) {
             this.pc++;
             break;
           }
 
-          registers[destReg] = constants[thunkIdx](registers);
+          const limit = Math.min(registers.length, 32);
+          for (let i = 0; i < limit; i++) {
+            prevRegBuffer[i] = registers[i];
+          }
+
+          const res = constants[thunkIdx](registers, this);
+          if (destReg !== 0) {
+            registers[destReg] = res;
+          } else {
+            let mask = 0;
+            for (let i = 0; i < limit; i++) {
+              if (registers[i] !== prevRegBuffer[i]) {
+                mask |= (1 << i);
+              }
+            }
+            if (mask !== 0) {
+              this.dirtyMask = mask;
+            }
+          }
           break;
         }
 
@@ -196,6 +224,14 @@ export class DriftJSVM {
           const parent = nodes[a] as Node;
           const child = nodes[b] as Node;
           parent.appendChild(child);
+          break;
+        }
+        case Opcodes.REMOVE_CHILD: {
+          const parent = nodes[a] as Node;
+          const child = nodes[b] as Node;
+          if (parent && child && child.parentNode === parent) {
+            parent.removeChild(child);
+          }
           break;
         }
         case Opcodes.MOUNT: {
@@ -221,6 +257,15 @@ export class DriftJSVM {
           }
           break;
         }
+        case Opcodes.SET_PROPERTY: {
+          const node = nodes[a] as any;
+          const prop = constants[b] as string;
+          const val = registers[c];
+          if (node && node[prop] !== val) {
+            node[prop] = val;
+          }
+          break;
+        }
 
         case Opcodes.BIND_EVENT: {
           const nodeIdx = a;
@@ -239,25 +284,10 @@ export class DriftJSVM {
           this.pc = offset;
           break;
         }
-        case Opcodes.JUMP_IF: {
-          const regCond = a;
-          const offset = inst & 0xFFFF;
-          if (registers[regCond]) {
-            this.pc = offset;
-          }
-          break;
-        }
-
-        case Opcodes.CALL: {
-          const offset = inst & 0xFFFFFF;
-          callStack.push(this.pc);
-          this.pc = offset;
-          break;
-        }
 
         case Opcodes.RETURN: {
           registers[0] = null; // Free event object reference for GC
-          this.dirtyMask = ~0;  // Reset for next execution
+          this.dirtyMask = 0;  // Reset for next execution
           if (callStack.length > 0) {
             this.pc = callStack.pop()!;
             break;

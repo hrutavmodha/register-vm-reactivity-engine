@@ -48,7 +48,8 @@ import { mountApp } from 'driftjs';
 
 export const program = {
   bytecode: new Uint32Array([${bytecodeArray.join(', ')}]),
-  constants: [${serializedConstants.join(', ')}]
+  constants: [${serializedConstants.join(', ')}],
+  updateBlockOffset: ${program.updateBlockOffset ?? 0}
 };
 
 export const mount = function mount(target) {

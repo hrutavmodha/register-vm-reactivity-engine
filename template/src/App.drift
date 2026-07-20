@@ -1,0 +1,61 @@
+<div class="counter-card">
+  <div>
+    <div class="app-badge">
+      <span class="badge-dot"></span>
+      DriftJS VM Engine
+    </div>
+    <h1 class="app-title">Reactive Counter</h1>
+    <p class="app-subtitle">Bytecode execution with microtask scheduler</p>
+  </div>
+
+  <div class="display-container">
+    <div class="display-value">{count}</div>
+    <div class="status-tag">Status: {status}</div>
+  </div>
+
+  <div class="controls-grid">
+    <button class="btn btn-secondary" onclick={decrement}>- 1</button>
+    <button class="btn" onclick={reset}>Reset</button>
+    <button class="btn btn-primary" onclick={increment}>+ 1</button>
+  </div>
+
+  <button class="btn btn-full" onclick={toggleAuto}>
+    ⚡ Toggle Auto-Increment
+  </button>
+</div>
+
+<script>
+  let count = 0;
+  let status = "Manual Control";
+  let isAuto = 0;
+  let timerId = null;
+
+  function increment() {
+    count++;
+  }
+
+  function decrement() {
+    count--;
+  }
+
+  function reset() {
+    count = 0;
+  }
+
+  function toggleAuto() {
+    if (isAuto) {
+      isAuto = 0;
+      status = "Manual Control";
+      if (timerId) {
+        clearInterval(timerId);
+        timerId = null;
+      }
+    } else {
+      isAuto = 1;
+      status = "Auto-Incrementing (1s)";
+      timerId = setInterval(() => {
+        count++;
+      }, 1000);
+    }
+  }
+</script>

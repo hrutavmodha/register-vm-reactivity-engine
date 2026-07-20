@@ -10,10 +10,11 @@ export const Opcodes = {
   SET_ATTRIBUTE: 9,
   BIND_EVENT: 10,
   JUMP: 11,
-  JUMP_IF: 12,
+  JUMP_IF_TRUE: 12,
   RETURN: 13,
   CALL: 14,
-  EXEC_THUNK_GUARDED: 15,
+  REMOVE_CHILD: 15,
+  SET_PROPERTY: 16,
 } as const;
 
 export type Opcode = typeof Opcodes[keyof typeof Opcodes];
