@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "ssr": "node server.js",
     "build": "tsc && vite build",
     "preview": "vite preview"
   },
@@ -15,6 +16,6 @@
   },
   "dependencies": {
     "@driftjs/compiler": "file:../packages/compiler",
-    "@driftjs/vm": "file:../packages/vm"
+    "@driftjs/runtime": "file:../packages/runtime"
   }
 }

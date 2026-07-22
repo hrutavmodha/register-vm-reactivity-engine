@@ -8,6 +8,11 @@ export enum TokenType {
   Text = 'Text',
   Interpolation = 'Interpolation',
   Script = 'Script',
+  If = 'If',
+  Else = 'Else',
+  For = 'For',
+  BlockOpen = 'BlockOpen',
+  BlockClose = 'BlockClose',
   EOF = 'EOF'
 }
 

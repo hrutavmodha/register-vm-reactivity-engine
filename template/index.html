@@ -4,6 +4,28 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>VM Reactivity Test</title>
+    <script>
+      window.addEventListener('load', () => {
+        const [nav] = performance.getEntriesByType('navigation');
+        if (nav) {
+          const ttfb = nav.responseStart - nav.requestStart;
+          const responseTime = nav.responseEnd - nav.responseStart;
+          const domInteractive = nav.domInteractive - nav.startTime;
+          const loadComplete = nav.loadEventEnd - nav.startTime;
+
+          console.log(`%c⏱️ --- DRIFTJS PERFORMANCE BENCHMARK ---`, 'color: #3b82f6; font-weight: bold; font-size: 14px;');
+          console.log(`📡 TTFB (Time To First Byte): ${ttfb.toFixed(2)} ms`);
+          console.log(`📦 Response Transfer Time:   ${responseTime.toFixed(2)} ms`);
+          console.log(`🎨 DOM Interactive:           ${domInteractive.toFixed(2)} ms`);
+          console.log(`🏁 Full Load Complete:        ${loadComplete.toFixed(2)} ms`);
+        }
+
+        const paints = performance.getEntriesByType('paint');
+        for (const paint of paints) {
+          console.log(`🖼️ ${paint.name}: ${paint.startTime.toFixed(2)} ms`);
+        }
+      });
+    </script>
   </head>
   <body>
     <div id="app"></div>

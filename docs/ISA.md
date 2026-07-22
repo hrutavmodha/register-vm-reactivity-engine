@@ -18,3 +18,8 @@
 | **14** | `0x0E` | `CALL` | Subroutine call: pushes current `pc` onto `callStack` and jumps to target offset `pc = offset24`. |
 | **15** | `0x0F` | `REMOVE_CHILD` | Removes child node `nodes[n_b]` from parent `nodes[n_a]` (`parent.removeChild(child)`). |
 | **16** | `0x10` | `SET_PROPERTY` | Sets DOM property `constants[c_b]` on element `nodes[n_a]` directly (`element[prop] = val`). |
+| **17** | `0x11` | `CREATE_COMMENT` | Creates DOM comment node `document.createComment(constants[c_a])` at `nodes[n_b]`. |
+| **18** | `0x12` | `INSERT_BEFORE` | Inserts `nodes[n_b]` into parent `nodes[n_a]` before anchor node `nodes[n_c]`. |
+| **19** | `0x13` | `JUMP_IF_FALSE` | Conditional branch to target offset if `registers[r_a]` is falsy. |
+| **20** | `0x14` | `JUMP_IF_EQUAL` | Conditional branch to target offset if `registers[r_a] === registers[r_b]`. |
+

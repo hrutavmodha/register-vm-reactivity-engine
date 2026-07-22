@@ -51,6 +51,14 @@ export class DriftJSParser {
   private parseNode(): ASTNode | null {
     const tok = this.currentToken();
 
+    if (tok.type === TokenType.If) {
+      return this.parseIfBlock();
+    }
+
+    if (tok.type === TokenType.For) {
+      return this.parseForBlock();
+    }
+
     if (tok.type === TokenType.Interpolation) {
       this.tokenCursor++;
       return {
@@ -71,13 +79,115 @@ export class DriftJSParser {
       return this.parseElement();
     }
 
-    if (tok.type === TokenType.TagClose) {
-      // Closing tag encountered, handled by parent element
+    if (tok.type === TokenType.TagClose || tok.type === TokenType.BlockClose || tok.type === TokenType.Else) {
       return null;
     }
 
     this.tokenCursor++;
     return null;
+  }
+
+  private parseIfBlock(): ASTNode {
+    const ifTok = this.consumeToken(TokenType.If);
+    const condition = ifTok.value;
+    this.consumeToken(TokenType.BlockOpen);
+
+    const consequent: ASTNode[] = [];
+    while (
+      !this.isEOF() &&
+      this.currentToken().type !== TokenType.BlockClose &&
+      this.currentToken().type !== TokenType.Else
+    ) {
+      const child = this.parseNode();
+      if (child) {
+        if (child.type === 'Text' && child.content.trim() === '') {
+          continue;
+        }
+        consequent.push(child);
+      }
+    }
+
+    if (this.currentToken().type === TokenType.BlockClose) {
+      this.consumeToken(TokenType.BlockClose);
+    }
+
+    let alternate: ASTNode[] | undefined;
+    if (this.currentToken().type === TokenType.Else) {
+      this.consumeToken(TokenType.Else);
+      if (this.currentToken().type === TokenType.BlockOpen) {
+        this.consumeToken(TokenType.BlockOpen);
+      }
+
+      alternate = [];
+      while (!this.isEOF() && this.currentToken().type !== TokenType.BlockClose) {
+        const child = this.parseNode();
+        if (child) {
+          if (child.type === 'Text' && child.content.trim() === '') {
+            continue;
+          }
+          alternate.push(child);
+        }
+      }
+
+      if (this.currentToken().type === TokenType.BlockClose) {
+        this.consumeToken(TokenType.BlockClose);
+      }
+    }
+
+    return {
+      type: 'IfBlock',
+      condition,
+      consequent,
+      ...(alternate ? { alternate } : {})
+    };
+  }
+
+  private parseForBlock(): ASTNode {
+    const forTok = this.consumeToken(TokenType.For);
+    const headerStr = forTok.value.trim();
+    this.consumeToken(TokenType.BlockOpen);
+
+    const inIdx = headerStr.indexOf(' in ');
+    if (inIdx === -1) {
+      throw new Error(`Invalid for loop syntax: expected "in" keyword in "${headerStr}"`);
+    }
+
+    let left = headerStr.substring(0, inIdx).trim();
+    if (left.startsWith('(') && left.endsWith(')')) {
+      left = left.slice(1, -1).trim();
+    }
+    const iterable = headerStr.substring(inIdx + 4).trim();
+
+    let item = left;
+    let index: string | undefined;
+    if (left.includes(',')) {
+      const parts = left.split(',').map(s => s.trim());
+      item = parts[0] || 'item';
+      index = parts[1];
+    }
+
+    const body: ASTNode[] = [];
+    while (!this.isEOF() && this.currentToken().type !== TokenType.BlockClose) {
+      const child = this.parseNode();
+      if (child) {
+        if (child.type === 'Text' && child.content.trim() === '') {
+          continue;
+        }
+        body.push(child);
+      }
+    }
+
+    if (this.currentToken().type === TokenType.BlockClose) {
+      this.consumeToken(TokenType.BlockClose);
+    }
+
+    return {
+      type: 'ForBlock',
+      item,
+      ...(index ? { index } : {}),
+      iterable,
+      body
+    };
   }
 
   private parseElement(): ASTNode {
@@ -140,7 +250,12 @@ export class DriftJSParser {
 
     const children: ASTNode[] = [];
     if (!isSelfClosing && !isVoidTag) {
-      while (!this.isEOF() && this.currentToken().type !== TokenType.TagClose) {
+      while (
+        !this.isEOF() &&
+        this.currentToken().type !== TokenType.TagClose &&
+        this.currentToken().type !== TokenType.BlockClose &&
+        this.currentToken().type !== TokenType.Else
+      ) {
         const child = this.parseNode();
         if (child) {
           if (child.type === 'Text' && child.content.trim() === '') {

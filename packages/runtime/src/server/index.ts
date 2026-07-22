@@ -78,7 +78,7 @@ export class DriftJSServerVM {
           const thunkIdx = b;
           const thunk = this.constants[thunkIdx];
           if (typeof thunk === 'function') {
-            this.registers[reg] = thunk(this.registers, this);
+            this.registers[reg] = thunk(this.registers, this, this.nodes, (this as any).rootElement || (this as any).root);
           }
           break;
         }
@@ -173,6 +173,45 @@ export class DriftJSServerVM {
           const condReg = a;
           if (Boolean(this.registers[condReg])) {
             this.pc = (b << 8) | c;
+          }
+          break;
+        }
+
+        case Opcodes.JUMP_IF_FALSE: {
+          const condReg = a;
+          if (!Boolean(this.registers[condReg])) {
+            this.pc = (b << 8) | c;
+          }
+          break;
+        }
+
+        case Opcodes.JUMP_IF_EQUAL: {
+          const regA = a;
+          const regB = b;
+          const targetPc = c;
+          if (this.registers[regA] === this.registers[regB]) {
+            this.pc = targetPc;
+          }
+          break;
+        }
+
+        case Opcodes.CREATE_COMMENT: {
+          break;
+        }
+
+        case Opcodes.INSERT_BEFORE: {
+          const parentIdx = a;
+          const childIdx = b;
+          const child = this.nodes[childIdx];
+          if (!child) break;
+
+          if (parentIdx === 0) {
+            this.rootChildren.push(child);
+          } else {
+            const parent = this.nodes[parentIdx];
+            if (parent && parent.type === 'Element') {
+              parent.children.push(child);
+            }
           }
           break;
         }

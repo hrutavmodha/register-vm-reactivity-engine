@@ -15,6 +15,9 @@ export class DriftJSClientVM {
   private prevRegBuffer: unknown[];
   private updateBlockOffset = 0;
   private updatePending = false;
+
+  private isHydrating = false;
+  private hydratedNodes = new Set<Node>();
   
   private eventDelegationTable: Map<string, number>;
   private registeredEvents: Map<string, (e: Event) => void>;
@@ -48,6 +51,15 @@ export class DriftJSClientVM {
     this.execute(0);
     this.dirtyMask = 0;
     this.prevRegBuffer = [...this.registers];
+  }
+
+  /**
+   * Hydrates an existing server-rendered HTML DOM tree without destroying or re-creating nodes.
+   */
+  public hydrate(): void {
+    this.isHydrating = true;
+    this.boot();
+    this.isHydrating = false;
   }
 
   /**
@@ -137,7 +149,7 @@ export class DriftJSClientVM {
 
           const thunk = this.constants[thunkIdx];
           if (typeof thunk === 'function') {
-            this.registers[reg] = thunk(this.registers, this);
+            this.registers[reg] = thunk(this.registers, this, this.nodes, this.rootElement);
           }
           break;
         }
@@ -145,6 +157,13 @@ export class DriftJSClientVM {
         case Opcodes.CREATE_ELEMENT: {
           const tag = this.constants[a] as string;
           const nodeIdx = b;
+          if (this.isHydrating) {
+            const existing = this.findMatchingHydrationNode(1, tag);
+            if (existing) {
+              this.nodes[nodeIdx] = existing;
+              break;
+            }
+          }
           const el = document.createElement(tag);
           this.nodes[nodeIdx] = el;
           break;
@@ -153,12 +172,20 @@ export class DriftJSClientVM {
         case Opcodes.CREATE_TEXT: {
           const textContent = (this.constants[a] as string) ?? '';
           const nodeIdx = b;
+          if (this.isHydrating) {
+            const existing = this.findMatchingHydrationNode(3);
+            if (existing) {
+              this.nodes[nodeIdx] = existing;
+              break;
+            }
+          }
           const textNode = document.createTextNode(textContent);
           this.nodes[nodeIdx] = textNode;
           break;
         }
 
         case Opcodes.APPEND_CHILD: {
+          if (this.isHydrating) break;
           const parentNode = (a === 0 ? this.rootElement : this.nodes[a]) as HTMLElement | null;
           const childNode = this.nodes[b];
           if (parentNode && childNode) {
@@ -177,6 +204,7 @@ export class DriftJSClientVM {
         }
 
         case Opcodes.MOUNT: {
+          if (this.isHydrating) break;
           const nodeIdx = a;
           const targetNode = this.nodes[nodeIdx];
           if (targetNode) {
@@ -231,20 +259,24 @@ export class DriftJSClientVM {
 
           if (!this.registeredEvents.has(eventName)) {
             const delegatedListener = (e: Event) => {
-              let curr = e.target as HTMLElement | null;
-              while (curr && curr !== this.rootElement) {
-                const nIdxStr = curr.getAttribute('data-drift-node');
-                if (nIdxStr !== null) {
-                  const nIdx = parseInt(nIdxStr, 10);
-                  const key = `${nIdx}:${eventName}`;
-                  const offset = this.eventDelegationTable.get(key);
-                  if (offset !== undefined) {
-                    this.registers[0] = e;
-                    this.execute(offset);
-                    break;
+              let curr: Node | null = e.target as Node | null;
+              while (curr) {
+                if (curr.nodeType === 1) {
+                  const elem = curr as HTMLElement;
+                  const nIdxStr = elem.getAttribute('data-drift-node');
+                  if (nIdxStr !== null) {
+                    const nIdx = parseInt(nIdxStr, 10);
+                    const key = `${nIdx}:${eventName}`;
+                    const offset = this.eventDelegationTable.get(key);
+                    if (offset !== undefined) {
+                      this.registers[0] = e;
+                      this.execute(offset);
+                      break;
+                    }
                   }
                 }
-                curr = curr.parentElement;
+                if (curr === this.rootElement) break;
+                curr = curr.parentNode;
               }
             };
 
@@ -263,6 +295,50 @@ export class DriftJSClientVM {
           const condReg = a;
           if (Boolean(this.registers[condReg])) {
             this.pc = (b << 8) | c;
+          }
+          break;
+        }
+
+        case Opcodes.JUMP_IF_FALSE: {
+          const condReg = a;
+          if (!Boolean(this.registers[condReg])) {
+            this.pc = (b << 8) | c;
+          }
+          break;
+        }
+
+        case Opcodes.JUMP_IF_EQUAL: {
+          const regA = a;
+          const regB = b;
+          const targetPc = c;
+          if (this.registers[regA] === this.registers[regB]) {
+            this.pc = targetPc;
+          }
+          break;
+        }
+
+        case Opcodes.CREATE_COMMENT: {
+          const commentText = (this.constants[a] as string) ?? '';
+          const nodeIdx = b;
+          if (this.isHydrating) {
+            const existing = this.findMatchingHydrationNode(8);
+            if (existing) {
+              this.nodes[nodeIdx] = existing;
+              break;
+            }
+          }
+          const commentNode = document.createComment(commentText);
+          this.nodes[nodeIdx] = commentNode;
+          break;
+        }
+
+        case Opcodes.INSERT_BEFORE: {
+          if (this.isHydrating) break;
+          const parentNode = (a === 0 ? this.rootElement : this.nodes[a]) as HTMLElement | null;
+          const childNode = this.nodes[b];
+          const anchorNode = this.nodes[c];
+          if (parentNode && childNode && anchorNode) {
+            parentNode.insertBefore(childNode, anchorNode);
           }
           break;
         }
@@ -286,6 +362,27 @@ export class DriftJSClientVM {
           throw new Error(`Unknown opcode: ${op}`);
       }
     }
+  }
+
+  private findMatchingHydrationNode(nodeType: number, tag?: string): Node | null {
+    const filter = nodeType === 1 ? NodeFilter.SHOW_ELEMENT : (nodeType === 3 ? NodeFilter.SHOW_TEXT : NodeFilter.SHOW_COMMENT);
+    const walker = document.createTreeWalker(this.rootElement, filter);
+    let curr: Node | null = walker.nextNode();
+    while (curr) {
+      if (!this.hydratedNodes.has(curr)) {
+        if (nodeType === 1 && tag) {
+          if ((curr as HTMLElement).tagName.toLowerCase() === tag.toLowerCase()) {
+            this.hydratedNodes.add(curr);
+            return curr;
+          }
+        } else {
+          this.hydratedNodes.add(curr);
+          return curr;
+        }
+      }
+      curr = walker.nextNode();
+    }
+    return null;
   }
 }
 
@@ -315,3 +412,19 @@ export function mount(component: DriftComponent, target: HTMLElement): DriftJSCl
   }
   return interpret(component.program, target);
 }
+
+/**
+ * Hydrates an existing server-rendered HTML DOM tree with a DriftComponent or VMProgram.
+ *
+ * @param component - Component or compiled program.
+ * @param target - Target HTML element containing server-rendered HTML.
+ * @returns Active DriftJSClientVM instance.
+ */
+export function hydrate(component: DriftComponent | VMProgram, target: HTMLElement): DriftJSClientVM {
+  const program = 'bytecode' in component ? component : component.program;
+  const vm = new DriftJSClientVM(program, target);
+  vm.hydrate();
+  return vm;
+}
+
+export const hydrateRoot = hydrate;

@@ -7,6 +7,7 @@ import { TokenType, type Token } from '../../types/index.js';
  */
 export class DriftJSLexer {
   private cursor = 0;
+  private blockDepth = 0;
 
   /**
    * Initializes a new lexer instance.
@@ -22,10 +23,19 @@ export class DriftJSLexer {
    */
   public tokenize(): Token[] {
     this.cursor = 0;
+    this.blockDepth = 0;
     const tokens: Token[] = [];
 
     while (!this.isEOF()) {
-      if (this.startsWith('{')) {
+      if (this.tryScanIfControlFlow(tokens)) {
+        continue;
+      } else if (this.tryScanForControlFlow(tokens)) {
+        continue;
+      } else if (this.tryScanElseControlFlow(tokens)) {
+        continue;
+      } else if (this.tryScanBlockClose(tokens)) {
+        continue;
+      } else if (this.startsWith('{')) {
         tokens.push(this.scanInterpolation());
       } else if (this.startsWith('<')) {
         if (this.source.charCodeAt(this.cursor + 1) === 47 /* '/' */) {
@@ -50,6 +60,224 @@ export class DriftJSLexer {
     });
 
     return tokens;
+  }
+
+  private tryScanIfControlFlow(tokens: Token[]): boolean {
+    let tempCursor = this.cursor;
+    while (tempCursor < this.source.length) {
+      const ch = this.source.charCodeAt(tempCursor);
+      if (ch === 32 || ch === 9 || ch === 10 || ch === 13) tempCursor++;
+      else break;
+    }
+
+    if (!this.source.startsWith('if', tempCursor)) {
+      return false;
+    }
+
+    const afterIf = tempCursor + 2;
+    if (afterIf >= this.source.length) return false;
+    const nextChar = this.source.charCodeAt(afterIf);
+    if (nextChar !== 32 && nextChar !== 9 && nextChar !== 10 && nextChar !== 13 && nextChar !== 40) {
+      return false;
+    }
+
+    let braceIdx = -1;
+    let inString = false;
+    let stringQuote = 0;
+    for (let i = afterIf; i < this.source.length; i++) {
+      const ch = this.source.charCodeAt(i);
+      if (inString) {
+        if (ch === stringQuote && this.source.charCodeAt(i - 1) !== 92) {
+          inString = false;
+        }
+        continue;
+      }
+      if (ch === 34 || ch === 39 || ch === 96) {
+        inString = true;
+        stringQuote = ch;
+        continue;
+      }
+      if (ch === 60 /* '<' */) {
+        break;
+      }
+      if (ch === 123 /* '{' */) {
+        braceIdx = i;
+        break;
+      }
+    }
+
+    if (braceIdx === -1) {
+      return false;
+    }
+
+    this.cursor = tempCursor;
+    const ifStart = this.cursor;
+    const conditionStr = this.source.substring(ifStart + 2, braceIdx).trim();
+
+    tokens.push({
+      type: TokenType.If,
+      value: conditionStr,
+      start: ifStart,
+      end: braceIdx
+    });
+
+    this.cursor = braceIdx + 1;
+    this.blockDepth++;
+
+    tokens.push({
+      type: TokenType.BlockOpen,
+      value: '{',
+      start: braceIdx,
+      end: this.cursor
+    });
+
+    return true;
+  }
+
+  private tryScanForControlFlow(tokens: Token[]): boolean {
+    let tempCursor = this.cursor;
+    while (tempCursor < this.source.length) {
+      const ch = this.source.charCodeAt(tempCursor);
+      if (ch === 32 || ch === 9 || ch === 10 || ch === 13) tempCursor++;
+      else break;
+    }
+
+    if (!this.source.startsWith('for', tempCursor)) {
+      return false;
+    }
+
+    const afterFor = tempCursor + 3;
+    if (afterFor >= this.source.length) return false;
+    const nextChar = this.source.charCodeAt(afterFor);
+    if (nextChar !== 32 && nextChar !== 9 && nextChar !== 10 && nextChar !== 13 && nextChar !== 40) {
+      return false;
+    }
+
+    let braceIdx = -1;
+    let inString = false;
+    let stringQuote = 0;
+    for (let i = afterFor; i < this.source.length; i++) {
+      const ch = this.source.charCodeAt(i);
+      if (inString) {
+        if (ch === stringQuote && this.source.charCodeAt(i - 1) !== 92) {
+          inString = false;
+        }
+        continue;
+      }
+      if (ch === 34 || ch === 39 || ch === 96) {
+        inString = true;
+        stringQuote = ch;
+        continue;
+      }
+      if (ch === 60 /* '<' */) {
+        break;
+      }
+      if (ch === 123 /* '{' */) {
+        braceIdx = i;
+        break;
+      }
+    }
+
+    if (braceIdx === -1) {
+      return false;
+    }
+
+    this.cursor = tempCursor;
+    const forStart = this.cursor;
+    const forHeaderStr = this.source.substring(forStart + 3, braceIdx).trim();
+
+    tokens.push({
+      type: TokenType.For,
+      value: forHeaderStr,
+      start: forStart,
+      end: braceIdx
+    });
+
+    this.cursor = braceIdx + 1;
+    this.blockDepth++;
+
+    tokens.push({
+      type: TokenType.BlockOpen,
+      value: '{',
+      start: braceIdx,
+      end: this.cursor
+    });
+
+    return true;
+  }
+
+  private tryScanElseControlFlow(tokens: Token[]): boolean {
+    let tempCursor = this.cursor;
+    while (tempCursor < this.source.length) {
+      const ch = this.source.charCodeAt(tempCursor);
+      if (ch === 32 || ch === 9 || ch === 10 || ch === 13) tempCursor++;
+      else break;
+    }
+
+    if (!this.source.startsWith('else', tempCursor)) {
+      return false;
+    }
+
+    const afterElse = tempCursor + 4;
+    let braceIdx = -1;
+    for (let i = afterElse; i < this.source.length; i++) {
+      const ch = this.source.charCodeAt(i);
+      if (ch === 32 || ch === 9 || ch === 10 || ch === 13) continue;
+      if (ch === 123 /* '{' */) {
+        braceIdx = i;
+        break;
+      }
+      break;
+    }
+
+    if (braceIdx === -1) {
+      return false;
+    }
+
+    this.cursor = tempCursor;
+    const elseStart = this.cursor;
+    tokens.push({
+      type: TokenType.Else,
+      value: 'else',
+      start: elseStart,
+      end: braceIdx
+    });
+
+    this.cursor = braceIdx + 1;
+    this.blockDepth++;
+
+    tokens.push({
+      type: TokenType.BlockOpen,
+      value: '{',
+      start: braceIdx,
+      end: this.cursor
+    });
+
+    return true;
+  }
+
+  private tryScanBlockClose(tokens: Token[]): boolean {
+    if (this.blockDepth <= 0) return false;
+
+    let tempCursor = this.cursor;
+    while (tempCursor < this.source.length) {
+      const ch = this.source.charCodeAt(tempCursor);
+      if (ch === 32 || ch === 9 || ch === 10 || ch === 13) tempCursor++;
+      else break;
+    }
+
+    if (tempCursor < this.source.length && this.source.charCodeAt(tempCursor) === 125 /* '}' */) {
+      this.cursor = tempCursor + 1;
+      this.blockDepth--;
+      tokens.push({
+        type: TokenType.BlockClose,
+        value: '}',
+        start: tempCursor,
+        end: this.cursor
+      });
+      return true;
+    }
+    return false;
   }
 
   private scanTagOpenAndAttributes(): Token[] {

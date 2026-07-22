@@ -81,5 +81,26 @@ describe('DriftJSLexer', () => {
       expect(tokens[1]).toEqual({ type: TokenType.AttributeName, value: 'disabled', start: 8, end: 16 });
       expect(tokens[2]).toEqual({ type: TokenType.TagOpenEnd, value: '>', start: 16, end: 17 });
     });
+
+    it('should tokenize if and else control flow statements', () => {
+      const source = 'if count > 5 { <p>High</p> } else { <p>Low</p> }';
+      const tokens = tokenize(source);
+      const ifTok = tokens.find(t => t.type === TokenType.If);
+      const elseTok = tokens.find(t => t.type === TokenType.Else);
+      expect(ifTok).toBeDefined();
+      expect(ifTok?.value).toBe('count > 5');
+      expect(elseTok).toBeDefined();
+      expect(elseTok?.value).toBe('else');
+    });
+
+    it('should tokenize for loop control flow blocks', () => {
+      const source = '<div>for item, index in items { <p>{item}</p> }</div>';
+      const lexer = new DriftJSLexer(source);
+      const tokens = lexer.tokenize();
+
+      const forTok = tokens.find(t => t.type === TokenType.For);
+      expect(forTok).toBeDefined();
+      expect(forTok?.value).toBe('item, index in items');
+    });
   });
 });

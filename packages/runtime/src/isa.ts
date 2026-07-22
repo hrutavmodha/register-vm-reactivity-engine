@@ -17,6 +17,10 @@ export const Opcodes = {
   CALL: 14,
   REMOVE_CHILD: 15,
   SET_PROPERTY: 16,
+  CREATE_COMMENT: 17,
+  INSERT_BEFORE: 18,
+  JUMP_IF_FALSE: 19,
+  JUMP_IF_EQUAL: 20,
 } as const;
 
 

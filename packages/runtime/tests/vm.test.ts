@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from 'vitest';
-import { DriftJSClientVM, mount, interpret } from '../src/index.js';
+import { DriftJSClientVM, mount, interpret, hydrate, renderToString } from '../src/index.js';
 import { parseTemplate, generate } from '@driftjs/compiler';
 import { Opcodes, encodeInstruction, encodeInstruction24 } from '../src/isa.js';
 
@@ -259,6 +259,97 @@ describe('DriftJSClientVM', () => {
       vm.markDirty(1);
       await new Promise(resolve => setTimeout(resolve, 20));
       expect(root.innerHTML).toContain('Count:');
+      vm.unmount();
+    });
+
+    it('should render conditional control flow if/else blocks', () => {
+      const template = '<script>let count = 6;</script><div>if count > 5 { <p>High</p> } else { <p>Low</p> }</div>';
+      const ast = parseTemplate(template);
+      const program = generate(ast);
+      const root = document.createElement('div');
+
+      const vm = interpret(program, root);
+      expect(root.innerHTML).toContain('<p>High</p>');
+      vm.unmount();
+    });
+
+    it('should dynamically switch branches on reactive state mutation', async () => {
+      const template = '<script>let count = 0; function inc() { count = 10; }</script><div>if count > 5 { <p>High</p> } else { <p>Low</p> }</div>';
+      const ast = parseTemplate(template);
+      const program = generate(ast);
+      const root = document.createElement('div');
+
+      const vm = interpret(program, root);
+      expect(root.innerHTML).toContain('<p>Low</p>');
+      expect(root.innerHTML).not.toContain('<p>High</p>');
+
+      (vm as any).registers[1] = 10;
+      vm.markDirty(1);
+      await new Promise(resolve => setTimeout(resolve, 30));
+
+      expect(root.innerHTML).toContain('<p>High</p>');
+      expect(root.innerHTML).not.toContain('<p>Low</p>');
+
+      vm.unmount();
+    });
+
+    it('should trigger state mutation and DOM re-render on button click', async () => {
+      const template = '<script>let count = 0; function inc() { count = count + 1; }</script><div><span>{count}</span><button onclick={inc}>+1</button></div>';
+      const ast = parseTemplate(template);
+      const program = generate(ast);
+      const root = document.createElement('div');
+
+      const vm = interpret(program, root);
+      expect(root.innerHTML).toContain('<span>0</span>');
+
+      const btn = root.querySelector('button')!;
+      btn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+      await new Promise(resolve => setTimeout(resolve, 30));
+
+      expect(root.innerHTML).toContain('<span>1</span>');
+      vm.unmount();
+    });
+
+    it('should render and reactively update for loop blocks', async () => {
+      const template = '<script>let items = ["Apple", "Banana"];</script><ul>for item, idx in items { <li>{idx}: {item}</li> }</ul>';
+      const ast = parseTemplate(template);
+      const program = generate(ast);
+      const root = document.createElement('div');
+
+      const vm = interpret(program, root);
+      expect(root.innerHTML).toContain('<li>0: Apple</li>');
+      expect(root.innerHTML).toContain('<li>1: Banana</li>');
+
+      (vm as any).registers[1] = ["Apple", "Banana", "Cherry"];
+      vm.markDirty(1);
+
+      await new Promise(resolve => setTimeout(resolve, 30));
+      expect(root.innerHTML).toContain('<li>2: Cherry</li>');
+
+      vm.unmount();
+    });
+
+    it('should hydrate server-rendered HTML and preserve reactivity without wiping DOM', async () => {
+      const template = '<script>let count = 0; function inc() { count = count + 1; }</script><div><span>{count}</span><button onclick={inc}>+1</button></div>';
+      const ast = parseTemplate(template);
+      const program = generate(ast);
+
+      const ssrHtml = renderToString(program);
+      const root = document.createElement('div');
+      root.innerHTML = ssrHtml;
+
+      const initialChildCount = root.childNodes.length;
+
+      const vm = hydrate(program, root);
+      expect(root.childNodes.length).toBe(initialChildCount);
+
+      const btn = root.querySelector('button')!;
+      btn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+      await new Promise(resolve => setTimeout(resolve, 30));
+
+      expect(root.innerHTML).toContain('<span>1</span>');
       vm.unmount();
     });
   });

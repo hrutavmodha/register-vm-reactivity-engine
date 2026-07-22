@@ -47,21 +47,21 @@ importers:
   template:
     dependencies:
       '@driftjs/compiler':
-        specifier: workspace:*
-        version: link:../packages/compiler
+        specifier: file:../packages/compiler
+        version: file:packages/compiler
       '@driftjs/runtime':
-        specifier: workspace:*
+        specifier: file:../packages/runtime
         version: link:../packages/runtime
     devDependencies:
-      '@driftjs/vite-plugin':
-        specifier: workspace:*
-        version: link:../packages/vite-plugin
       typescript:
         specifier: ^7.0.2
         version: 7.0.2
       vite:
         specifier: ^8.1.5
         version: 8.1.5(esbuild@0.28.1)
+      vite-plugin-drift:
+        specifier: file:../packages/vite-plugin
+        version: '@driftjs/vite-plugin@file:packages/vite-plugin(vite@8.1.5(esbuild@0.28.1))'
 
 packages:
 
@@ -119,6 +119,14 @@ packages:
   '@csstools/css-tokenizer@4.0.0':
     resolution: {integrity: sha512-QxULHAm7cNu72w97JUNCBFODFaXpbDg+dP8b/oWFAZ2MTRppA3U00Y2L1HqaS4J6yBqxwa/Y3nMBaxVKbB/NsA==}
     engines: {node: '>=20.19.0'}
+
+  '@driftjs/compiler@file:packages/compiler':
+    resolution: {directory: packages/compiler, type: directory}
+
+  '@driftjs/vite-plugin@file:packages/vite-plugin':
+    resolution: {directory: packages/vite-plugin, type: directory}
+    peerDependencies:
+      vite: '>=7.0.0'
 
   '@emnapi/core@1.11.1':
     resolution: {integrity: sha512-RSvbQmHzdKzNsLYa/wHrbc3KN4sYLKAdPZxqiM2HATqv/SBk2/ENSHpvXGaLOMcsAyz0poEGqkmmKYG3OWiJEQ==}
@@ -987,6 +995,18 @@ snapshots:
       css-tree: 3.2.1
 
   '@csstools/css-tokenizer@4.0.0': {}
+
+  '@driftjs/compiler@file:packages/compiler':
+    dependencies:
+      '@driftjs/runtime': link:packages/runtime
+      acorn: 8.17.0
+      estree-walker: 3.0.3
+
+  '@driftjs/vite-plugin@file:packages/vite-plugin(vite@8.1.5(esbuild@0.28.1))':
+    dependencies:
+      '@driftjs/compiler': link:packages/compiler
+      '@driftjs/runtime': link:packages/runtime
+      vite: 8.1.5(esbuild@0.28.1)
 
   '@emnapi/core@1.11.1':
     dependencies:

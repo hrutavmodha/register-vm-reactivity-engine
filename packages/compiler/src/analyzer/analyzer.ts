@@ -56,6 +56,13 @@ export class DriftJSAnalyzer {
         scripts.push(node);
       } else if (node.type === 'Element' && node.children) {
         scripts.push(...this.collectScriptNodes(node.children));
+      } else if (node.type === 'IfBlock') {
+        scripts.push(...this.collectScriptNodes(node.consequent));
+        if (node.alternate) {
+          scripts.push(...this.collectScriptNodes(node.alternate));
+        }
+      } else if (node.type === 'ForBlock') {
+        scripts.push(...this.collectScriptNodes(node.body));
       }
     }
     return scripts;
@@ -78,9 +85,10 @@ export class DriftJSAnalyzer {
    *
    * @param expr - Expression string to rewrite.
    * @param isEventHandler - Whether the expression is inside an event handler.
+   * @param localScopeVars - Optional array of additional local variable names in scope.
    * @returns Analyzed expression with rewritten string and depMask.
    */
-  public rewriteExpression(expr: string, isEventHandler = false): AnalyzedExpression {
+  public rewriteExpression(expr: string, isEventHandler = false, localScopeVars: string[] = []): AnalyzedExpression {
     const jsAst = acorn.parse(expr, { ecmaVersion: 2020, allowReturnOutsideFunction: true });
     const replacements: Replacement[] = [];
     let depMask = 0;
@@ -89,6 +97,9 @@ export class DriftJSAnalyzer {
     if (isEventHandler) {
       localScopes[0]!.add('e');
       localScopes[0]!.add('event');
+    }
+    for (const v of localScopeVars) {
+      if (v) localScopes[0]!.add(v);
     }
 
     const isLocal = (name: string): boolean => {

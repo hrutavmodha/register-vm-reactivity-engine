@@ -11,6 +11,12 @@
   <div class="display-container">
     <div class="display-value">{count}</div>
     <div class="status-tag">Status: {status}</div>
+
+    if count > 5 {
+      <div class="status-tag" style="background: rgba(239, 68, 68, 0.2); color: #f87171;">🔥 High Count Reached!</div>
+    } else {
+      <div class="status-tag" style="background: rgba(59, 130, 246, 0.2); color: #60a5fa;">✨ Keep Counting...</div>
+    } 
   </div>
 
   <div class="controls-grid">
@@ -22,6 +28,12 @@
   <button class="btn btn-full" onclick={toggleAuto}>
     ⚡ Toggle Auto-Increment
   </button>
+
+  <div class="logs-container" style="margin-top: 1rem;">
+    for log, idx in logs {
+      <div class="log-item" style="padding: 0.25rem 0.5rem; font-size: 0.85rem; color: #a1a1aa;">#{idx + 1}: {log}</div>
+    }
+  </div>
 </div>
 
 <script>
@@ -29,13 +41,16 @@
   let status = "Manual Control";
   let isAuto = 0;
   let timerId = null;
+  let logs = ["App booted"];
 
   function increment() {
     count++;
+    logs = [...logs, "Incremented to " + count];
   }
 
   function decrement() {
     count--;
+    logs = [...logs, "Decremented to " + count];
   }
 
   function reset() {

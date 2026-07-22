@@ -123,6 +123,74 @@ describe('DriftJSParser', () => {
         }
       ]);
     });
+
+    it('should parse control flow if and else statements', () => {
+      const template = '<div>if count > 5 { <p>High</p> } else { <p>Low</p> }</div>';
+      const ast = parseTemplate(template);
+      expect(ast).toEqual([
+        {
+          type: 'Element',
+          tag: 'div',
+          attributes: {},
+          events: {},
+          children: [
+            {
+              type: 'IfBlock',
+              condition: 'count > 5',
+              consequent: [
+                {
+                  type: 'Element',
+                  tag: 'p',
+                  attributes: {},
+                  events: {},
+                  children: [{ type: 'Text', content: 'High' }]
+                }
+              ],
+              alternate: [
+                {
+                  type: 'Element',
+                  tag: 'p',
+                  attributes: {},
+                  events: {},
+                  children: [{ type: 'Text', content: 'Low' }]
+                }
+              ]
+            }
+          ]
+        }
+      ]);
+    });
+
+    it('should parse for loop control flow blocks', () => {
+      const template = '<div>for item, idx in items { <p>{item}</p> }</div>';
+      const ast = parseTemplate(template);
+
+      expect(ast).toEqual([
+        {
+          type: 'Element',
+          tag: 'div',
+          attributes: {},
+          events: {},
+          children: [
+            {
+              type: 'ForBlock',
+              item: 'item',
+              index: 'idx',
+              iterable: 'items',
+              body: [
+                {
+                  type: 'Element',
+                  tag: 'p',
+                  attributes: {},
+                  events: {},
+                  children: [{ type: 'Interpolation', expression: 'item' }]
+                }
+              ]
+            }
+          ]
+        }
+      ]);
+    });
   });
 
   describe('edge and error cases', () => {
