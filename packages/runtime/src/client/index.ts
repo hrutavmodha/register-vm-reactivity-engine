@@ -1,5 +1,5 @@
 import { Opcodes } from '../isa.js';
-import type { Opcode, VMProgram, DriftComponent } from '../../types/index.js';
+import type { Opcode, VMProgram, DriftJSComponent } from '../../types/index.js';
 
 /**
  * DriftJS Virtual Machine for executing bytecode programs against a target HTML element.
@@ -147,7 +147,11 @@ export class DriftJSClientVM {
             break;
           }
 
-          const thunk = this.constants[thunkIdx];
+          let thunk = this.constants[thunkIdx];
+          if (typeof thunk === 'string' && (thunk.startsWith('(regs, vm') || thunk.startsWith('function'))) {
+            thunk = (0, eval)(thunk.startsWith('function') ? `(${thunk})` : thunk);
+            this.constants[thunkIdx] = thunk;
+          }
           if (typeof thunk === 'function') {
             this.registers[reg] = thunk(this.registers, this, this.nodes, this.rootElement);
           }
@@ -400,13 +404,13 @@ export function interpret(program: VMProgram, target: HTMLElement): DriftJSClien
 }
 
 /**
- * Mounts a DriftComponent into a target HTML element.
+ * Mounts a DriftJSComponent module into a target HTML element.
  *
- * @param component - Compiled component object containing program bytecode.
+ * @param component - Component module object.
  * @param target - Target HTML element to mount into.
  * @returns Active DriftJSClientVM instance.
  */
-export function mount(component: DriftComponent, target: HTMLElement): DriftJSClientVM {
+export function mount(component: DriftJSComponent, target: HTMLElement): DriftJSClientVM {
   if (typeof component.render === 'function') {
     return component.render(target);
   }
@@ -414,17 +418,14 @@ export function mount(component: DriftComponent, target: HTMLElement): DriftJSCl
 }
 
 /**
- * Hydrates an existing server-rendered HTML DOM tree with a DriftComponent or VMProgram.
+ * Hydrates an existing server-rendered HTML DOM tree with a VMProgram.
  *
- * @param component - Component or compiled program.
+ * @param program - Compiled VM program.
  * @param target - Target HTML element containing server-rendered HTML.
  * @returns Active DriftJSClientVM instance.
  */
-export function hydrate(component: DriftComponent | VMProgram, target: HTMLElement): DriftJSClientVM {
-  const program = 'bytecode' in component ? component : component.program;
+export function hydrate(program: VMProgram, target: HTMLElement): DriftJSClientVM {
   const vm = new DriftJSClientVM(program, target);
   vm.hydrate();
   return vm;
 }
-
-export const hydrateRoot = hydrate;

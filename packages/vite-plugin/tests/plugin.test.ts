@@ -17,6 +17,7 @@ describe('vite-plugin-drift', () => {
 
     expect(result).not.toBeNull();
     expect(typeof result.code).toBe('string');
+    expect(result.code).toContain('function _thunk0(');
     expect(result.code).toContain('export const program');
     expect(result.code).toContain('export const render');
     expect(result.code).toContain('updateBlockOffset:');
@@ -33,10 +34,13 @@ describe('vite-plugin-drift', () => {
       .replace("export const render = function render(target) {", "const render = function render(target) {")
       .replace("export default component;", "");
 
-    const evaluator = new Function('interpret', 'target', `
-      ${cleanJsCode}
-      return render(target);
-    `);
+    const evaluator = (interpretFn: typeof interpret, targetEl: HTMLElement) => {
+      const fn = (0, eval)(`((interpret, target) => {
+        ${cleanJsCode}
+        return render(target);
+      })`);
+      return fn(interpretFn, targetEl);
+    };
 
     const root = document.createElement('div');
     evaluator(interpret, root);

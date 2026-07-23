@@ -13,5 +13,3 @@ export interface DriftJSComponent {
   ast?: unknown[];
   render?: (target: HTMLElement) => any;
 }
-
-export type DriftComponent = DriftJSComponent;

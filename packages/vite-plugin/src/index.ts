@@ -24,16 +24,49 @@ export function driftPlugin(options: DriftPluginOptions = {}): Plugin {
       // 2. Serialize bytecode Uint32Array
       const bytecodeArray = Array.from(program.bytecode);
 
-      // 3. Serialize constants (functions serialized as function expressions)
-      const serializedConstants = program.constants.map(c => {
+      // 3. Serialize constants (thunks emitted as top-level named functions)
+      const thunkFunctions: string[] = [];
+      const serializedConstants: string[] = [];
+
+      program.constants.forEach((c) => {
         if (typeof c === 'function') {
-          return c.toString();
+          const fnName = `_thunk${thunkFunctions.length}`;
+          const fnStr = c.toString();
+          const namedFn = fnStr.replace(
+            /^(?:function\s*\w*|\((?:regs,\s*vm,\s*nodes,\s*rootElement)?\)\s*=>|args\s*=>)/,
+            `function ${fnName}`
+          );
+          thunkFunctions.push(namedFn);
+          serializedConstants.push(fnName);
+        } else if (
+          typeof c === 'string' &&
+          (c.startsWith('(regs, vm') || c.startsWith('function'))
+        ) {
+          const fnName = `_thunk${thunkFunctions.length}`;
+          let body = c.trim();
+          if (body.startsWith('(regs, vm, nodes, rootElement) =>')) {
+            body = body.slice('(regs, vm, nodes, rootElement) =>'.length).trim();
+            if (body.startsWith('{') && body.endsWith('}')) {
+              body = body.slice(1, -1).trim();
+            } else {
+              body = `return ${body};`;
+            }
+          } else if (body.startsWith('function')) {
+            body = body.replace(/^function\s*\([^)]*\)\s*\{/, '').replace(/\}$/, '').trim();
+          }
+          thunkFunctions.push(
+            `function ${fnName}(regs, vm, nodes, rootElement) {\n  ${body}\n}`
+          );
+          serializedConstants.push(fnName);
+        } else {
+          serializedConstants.push(JSON.stringify(c));
         }
-        return JSON.stringify(c);
       });
 
       const jsCode = `
 import { interpret } from '@driftjs/runtime';
+
+${thunkFunctions.join('\n\n')}
 
 export const program = {
   bytecode: new Uint32Array([${bytecodeArray.join(', ')}]),

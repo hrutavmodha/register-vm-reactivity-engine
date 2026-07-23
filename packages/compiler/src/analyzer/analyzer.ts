@@ -76,8 +76,8 @@ export class DriftJSAnalyzer {
     return this.varToReg.has(name);
   }
 
-  public createThunk(code: string): (regs: unknown[], vm: unknown) => unknown {
-    return new Function('regs', 'vm', code) as (regs: unknown[], vm: unknown) => unknown;
+  public createThunk(code: string): string {
+    return `(regs, vm, nodes, rootElement) => {\n  ${code.trim()}\n}`;
   }
 
   /**

@@ -46,7 +46,7 @@ describe('DriftJSGenerator', () => {
       expect(program.constants).toContain('input');
       expect(program.constants).toContain('value');
       expect(program.constants).toContain('input');
-      const thunks = program.constants.filter((c) => typeof c === 'function');
+      const thunks = program.constants.filter((c) => typeof c === 'function' || (typeof c === 'string' && (c.startsWith('(regs, vm') || c.startsWith('function'))));
       expect(thunks.length).toBeGreaterThan(0);
     });
 

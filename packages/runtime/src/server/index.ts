@@ -1,7 +1,6 @@
 import { Opcodes } from '../isa.js';
 import { VOID_ELEMENTS } from '../constants.js';
-import type { Opcode, VMProgram, DriftComponent } from '../../types/index.js';
-
+import type { Opcode, VMProgram, DriftJSComponent } from '../../types/index.js';
 
 export interface VirtualElementNode {
   type: 'Element';
@@ -76,7 +75,11 @@ export class DriftJSServerVM {
         case Opcodes.EXEC_THUNK: {
           const reg = a;
           const thunkIdx = b;
-          const thunk = this.constants[thunkIdx];
+          let thunk = this.constants[thunkIdx];
+          if (typeof thunk === 'string' && (thunk.startsWith('(regs, vm') || thunk.startsWith('function'))) {
+            thunk = (0, eval)(thunk.startsWith('function') ? `(${thunk})` : thunk);
+            this.constants[thunkIdx] = thunk;
+          }
           if (typeof thunk === 'function') {
             this.registers[reg] = thunk(this.registers, this, this.nodes, (this as any).rootElement || (this as any).root);
           }
@@ -275,13 +278,12 @@ function escapeHtml(str: string): string {
 }
 
 /**
- * Server-Side Renders a DriftComponent or VMProgram into an HTML string.
+ * Server-Side Renders a VMProgram into an HTML string.
  *
- * @param input - Component or compiled program.
+ * @param program - Compiled VM program.
  * @returns Serialized HTML string.
  */
-export function renderToString(input: DriftComponent | VMProgram): string {
-  const program = 'bytecode' in input ? input : input.program;
+export function renderToString(program: VMProgram): string {
   const vm = new DriftJSServerVM(program);
   return vm.renderToString();
 }
