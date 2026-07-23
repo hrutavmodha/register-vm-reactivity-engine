@@ -156,7 +156,14 @@ export class DriftJSParser {
     if (left.startsWith('(') && left.endsWith(')')) {
       left = left.slice(1, -1).trim();
     }
-    const iterable = headerStr.substring(inIdx + 4).trim();
+    let right = headerStr.substring(inIdx + 4).trim();
+    let key: string | undefined;
+    const byIdx = right.indexOf(' by ');
+    if (byIdx !== -1) {
+      key = right.substring(byIdx + 4).trim();
+      right = right.substring(0, byIdx).trim();
+    }
+    const iterable = right;
 
     let item = left;
     let index: string | undefined;
@@ -185,6 +192,7 @@ export class DriftJSParser {
       type: 'ForBlock',
       item,
       ...(index ? { index } : {}),
+      ...(key ? { key } : {}),
       iterable,
       body
     };

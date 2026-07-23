@@ -12,10 +12,10 @@ This document provides a formal test specification matrix covering all 76 test c
 | **`@driftjs/compiler` (Parser)**    | `packages/compiler/tests/parser.test.ts`    |      15      |          0          |       15       |         ✅ 15 PASSED          |
 | **`@driftjs/compiler` (Analyzer)**  | `packages/compiler/tests/analyzer.test.ts`  |      8       |          0          |        8        |          ✅ 8 PASSED          |
 | **`@driftjs/compiler` (Generator)** | `packages/compiler/tests/generator.test.ts` |      5       |          0          |        5        |          ✅ 5 PASSED          |
-| **`@driftjs/runtime` (Client)**     | `packages/runtime/tests/vm.test.ts`         |      24      |          0          |       24       |         ✅ 24 PASSED          |
+| **`@driftjs/runtime` (Client)**     | `packages/runtime/tests/vm.test.ts`         |      27      |          0          |       27       |         ✅ 27 PASSED          |
 | **`@driftjs/runtime` (Server)**     | `packages/runtime/tests/server.test.ts`     |      9       |          0          |        9        |          ✅ 9 PASSED          |
 | **`@driftjs/vite-plugin`**          | `packages/vite-plugin/tests/plugin.test.ts` |      4       |          0          |        4        |          ✅ 4 PASSED          |
-| **Total Workspace**                   | **7 Test Suites**                       |    **77**    |        **0**        |     **77**     |   **77/77 PASSED (100%)**     |
+| **Total Workspace**                   | **7 Test Suites**                       |    **80**    |        **0**        |     **80**     |   **80/80 PASSED (100%)**     |
 
 ---
 
@@ -117,6 +117,9 @@ This document provides a formal test specification matrix covering all 76 test c
 | `TC-VM-022` | Security           | Reject unallowed property keys in `SET_PROPERTY`                         | `SET_PROPERTY` with `innerHTML`                           | Throws `Security Violation` error for unallowed property mutations                         |  ✅ PASSED  |
 | `TC-VM-023` | Security           | Block `javascript:` URIs and `on*` attributes in `SET_ATTRIBUTE`          | `SET_ATTRIBUTE` with `javascript:alert(1)`                | Throws `Security Violation` error for dangerous attribute values                           |  ✅ PASSED  |
 | `TC-VM-024` | Optimization       | Perform $O(N)$ keyed DOM node reconciliation on list items               | Prepend item `{id: 3}` to list `[{id: 1}, {id: 2}]`       | Reuses existing DOM nodes for `{id: 1}` and `{id: 2}` in-place without re-creating elements |  ✅ PASSED  |
+| `TC-VM-025` | Optimization       | Correctly handle complete list reversal with backward DOM reordering     | Reverse `[{id: 1}, {id: 2}, {id: 3}, {id: 4}]` to reversed order | Reuses exact DOM nodes and positions them in `D C B A` order using backward iteration       |  ✅ PASSED  |
+| `TC-VM-026` | Optimization       | Handle duplicate primitive list items without leaving ghost nodes        | Array `["a", "b", "a"]` updated to `["a", "a"]`            | Disambiguates keys via instance suffix and removes deleted nodes without leaving ghost nodes |  ✅ PASSED  |
+| `TC-VM-027` | Language Spec      | Support explicit key expression syntax `for item in items by keyExpr`    | `for item in items by item.uid { <li>{item.val}</li> }`    | Rewrites key expression via analyzer and reconciles DOM nodes by explicit user key         |  ✅ PASSED  |
 
 ---
 

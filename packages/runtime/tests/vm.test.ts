@@ -353,6 +353,72 @@ describe('DriftJSClientVM', () => {
       vm.unmount();
     });
 
+    it('should correctly handle complete list reversal and node reordering', async () => {
+      const template = '<script>let items = [{id: 1, text: "A"}, {id: 2, text: "B"}, {id: 3, text: "C"}, {id: 4, text: "D"}];</script><ul>for item in items { <li>{item.text}</li> }</ul>';
+      const ast = parseTemplate(template);
+      const program = generate(ast);
+      const root = document.createElement('div');
+
+      const vm = interpret(program, root);
+      const initialNodes = Array.from(root.querySelectorAll('li'));
+      expect(initialNodes.map(n => n.textContent)).toEqual(['A', 'B', 'C', 'D']);
+
+      // Reverse list
+      (vm as any).registers[1] = [{id: 4, text: "D"}, {id: 3, text: "C"}, {id: 2, text: "B"}, {id: 1, text: "A"}];
+      vm.markDirty(1);
+
+      await new Promise(resolve => setTimeout(resolve, 30));
+      const reversedNodes = Array.from(root.querySelectorAll('li'));
+      expect(reversedNodes.map(n => n.textContent)).toEqual(['D', 'C', 'B', 'A']);
+      // Verify exact DOM nodes were reused in reversed order!
+      expect(reversedNodes[0]).toBe(initialNodes[3]);
+      expect(reversedNodes[1]).toBe(initialNodes[2]);
+      expect(reversedNodes[2]).toBe(initialNodes[1]);
+      expect(reversedNodes[3]).toBe(initialNodes[0]);
+
+      vm.unmount();
+    });
+
+    it('should handle duplicate primitive list items without leaving ghost nodes', async () => {
+      const template = '<script>let items = ["a", "b", "a"];</script><ul>for item in items { <li>{item}</li> }</ul>';
+      const ast = parseTemplate(template);
+      const program = generate(ast);
+      const root = document.createElement('div');
+
+      const vm = interpret(program, root);
+      expect(Array.from(root.querySelectorAll('li')).map(n => n.textContent)).toEqual(['a', 'b', 'a']);
+
+      (vm as any).registers[1] = ["a", "a"];
+      vm.markDirty(1);
+
+      await new Promise(resolve => setTimeout(resolve, 30));
+      expect(Array.from(root.querySelectorAll('li')).map(n => n.textContent)).toEqual(['a', 'a']);
+
+      vm.unmount();
+    });
+
+    it('should support explicit key expression syntax "for item in items by keyExpr"', async () => {
+      const template = '<script>let items = [{uid: "x1", val: 10}, {uid: "x2", val: 20}];</script><ul>for item in items by item.uid { <li>{item.val}</li> }</ul>';
+      const ast = parseTemplate(template);
+      const program = generate(ast);
+      const root = document.createElement('div');
+
+      const vm = interpret(program, root);
+      const nodeX1 = root.querySelectorAll('li')[0]!;
+      expect(nodeX1.textContent).toBe('10');
+
+      (vm as any).registers[1] = [{uid: "x2", val: 20}, {uid: "x1", val: 15}];
+      vm.markDirty(1);
+
+      await new Promise(resolve => setTimeout(resolve, 30));
+      const lis = root.querySelectorAll('li');
+      expect(lis[0]!.textContent).toBe('20');
+      expect(lis[1]!.textContent).toBe('15');
+      expect(lis[1]).toBe(nodeX1);
+
+      vm.unmount();
+    });
+
     it('should hydrate server-rendered HTML and preserve reactivity without wiping DOM', async () => {
       const template = '<script>let count = 0; function inc() { count = count + 1; }</script><div><span>{count}</span><button onclick={inc}>+1</button></div>';
       const ast = parseTemplate(template);

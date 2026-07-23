@@ -381,6 +381,9 @@ export class DriftJSGenerator {
     }
 
     const { rewritten: iterableRewritten, depMask } = this.analyzer.rewriteExpression(node.iterable, false);
+    const extraLocals: string[] = [node.item];
+    if (node.index) extraLocals.push(node.index);
+    const keyRewritten = node.key ? this.analyzer.rewriteExpression(node.key, false, extraLocals).rewritten : null;
     const { createJS, updateJS } = this.compileForBodyToJS(node.body, node.item, node.index);
 
     const thunkCode = `
@@ -404,21 +407,35 @@ export class DriftJSGenerator {
       for (let i = 0; i < list.length; i++) {
         const itemVal = list[i];
         const indexVal = i;
+        const ${node.item} = itemVal;
+        ${node.index ? `const ${node.index} = indexVal;` : ''}
         const scope = { [itemVar]: itemVal };
         if (indexVar) scope[indexVar] = indexVal;
 
-        let keyVal;
-        if (${node.key ? JSON.stringify(node.key) : 'null'}) {
-          keyVal = ${node.key ? `(${node.key})` : 'null'};
+        let rawKeyVal;
+        if (${keyRewritten ? 'true' : 'false'}) {
+          rawKeyVal = (${keyRewritten});
         } else if (itemVal !== null && typeof itemVal === 'object') {
-          keyVal = itemVal.id !== undefined ? itemVal.id : (itemVal.key !== undefined ? itemVal.key : (itemVal._id !== undefined ? itemVal._id : i));
+          rawKeyVal = itemVal.id !== undefined ? itemVal.id : (itemVal.key !== undefined ? itemVal.key : (itemVal._id !== undefined ? itemVal._id : i));
         } else {
-          keyVal = itemVal !== undefined ? itemVal : i;
+          rawKeyVal = itemVal !== undefined ? itemVal : i;
         }
 
-        let itemRecord = oldKeyMap.get(keyVal);
-        if (itemRecord && itemRecord.nodes && itemRecord.nodes.length > 0) {
+        let keyVal = rawKeyVal;
+        let dupIdx = 0;
+        while (newKeyMap.has(keyVal)) {
+          dupIdx++;
+          keyVal = String(rawKeyVal) + '__dup_' + dupIdx;
+        }
+
+        let existingRecords = oldKeyMap.get(rawKeyVal) || oldKeyMap.get(keyVal);
+        let itemRecord = existingRecords && existingRecords.length > 0 ? existingRecords.shift() : null;
+        if (existingRecords && existingRecords.length === 0) {
+          oldKeyMap.delete(rawKeyVal);
           oldKeyMap.delete(keyVal);
+        }
+
+        if (itemRecord && itemRecord.nodes && itemRecord.nodes.length > 0) {
           ${updateJS}
         } else {
           itemRecord = { key: keyVal, nodes: [], textBindings: {} };
@@ -426,26 +443,33 @@ export class DriftJSGenerator {
         }
 
         itemRecord.key = keyVal;
-        newKeyMap.set(keyVal, itemRecord);
+        newKeyMap.set(keyVal, [itemRecord]);
         newCache.push(itemRecord);
       }
 
-      for (let i = 0; i < newCache.length; i++) {
+      let nextRefNode = anchor;
+      for (let i = newCache.length - 1; i >= 0; i--) {
         const itemRecord = newCache[i];
-        const nextItemRecord = newCache[i + 1];
-        const refNode = (nextItemRecord && nextItemRecord.nodes && nextItemRecord.nodes[0]) || anchor;
-        for (const n of itemRecord.nodes) {
-          if (n && n.nextSibling !== refNode) {
-            parent.insertBefore(n, refNode);
+        for (let j = itemRecord.nodes.length - 1; j >= 0; j--) {
+          const n = itemRecord.nodes[j];
+          if (n && n.nextSibling !== nextRefNode) {
+            parent.insertBefore(n, nextRefNode);
+          }
+          if (n) {
+            nextRefNode = n;
           }
         }
       }
 
-      for (const oldRec of oldKeyMap.values()) {
-        if (oldRec && oldRec.nodes) {
-          for (const n of oldRec.nodes) {
-            if (n && n.parentNode === parent) {
-              parent.removeChild(n);
+      for (const recordsList of oldKeyMap.values()) {
+        if (Array.isArray(recordsList)) {
+          for (const oldRec of recordsList) {
+            if (oldRec && oldRec.nodes) {
+              for (const n of oldRec.nodes) {
+                if (n && n.parentNode === parent) {
+                  parent.removeChild(n);
+                }
+              }
             }
           }
         }
