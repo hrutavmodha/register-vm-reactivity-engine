@@ -287,7 +287,13 @@ export class DriftJSClientVM {
         case Opcodes.BIND_EVENT: {
           const nodeIdx = a;
           const eventName = this.constants[b] as string;
-          const handlerOffset = c;
+          let handlerOffset = c;
+
+          const nextInst = this.bytecode[this.pc]!;
+          if (nextInst !== undefined && ((nextInst >> 24) & 0xFF) === Opcodes.CALL) {
+            handlerOffset = nextInst & 0xFFFFFF;
+            this.pc++;
+          }
 
           const targetNode = (nodeIdx === 0 ? this.rootElement : this.nodes[nodeIdx]) as HTMLElement | null;
           if (targetNode) {

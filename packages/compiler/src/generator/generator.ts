@@ -102,8 +102,9 @@ export class DriftJSGenerator {
         Opcodes.BIND_EVENT,
         handler.nodeIdx,
         handler.eventIdx,
-        handlerOffset
+        0
       );
+      this.bytecode[handler.bindInstIdx + 1] = (Opcodes.CALL << 24) | (handlerOffset & 0xFFFFFF);
     }
 
     this.bytecode[endOfMountJumpIdx] = encodeInstruction(
@@ -393,7 +394,8 @@ export class DriftJSGenerator {
 
       if (!vm) vm = {};
       if (!vm._forCache) vm._forCache = new Map();
-      const oldCache = vm._forCache.get(${anchorNodeIdx}) || [];
+      const oldKeyMap = vm._forCache.get(${anchorNodeIdx}) || new Map();
+      const newKeyMap = new Map();
       const newCache = [];
 
       const itemVar = ${JSON.stringify(node.item)};
@@ -405,24 +407,41 @@ export class DriftJSGenerator {
         const scope = { [itemVar]: itemVal };
         if (indexVar) scope[indexVar] = indexVal;
 
-        let itemRecord = oldCache[i];
+        let keyVal;
+        if (${node.key ? JSON.stringify(node.key) : 'null'}) {
+          keyVal = ${node.key ? `(${node.key})` : 'null'};
+        } else if (itemVal !== null && typeof itemVal === 'object') {
+          keyVal = itemVal.id !== undefined ? itemVal.id : (itemVal.key !== undefined ? itemVal.key : (itemVal._id !== undefined ? itemVal._id : i));
+        } else {
+          keyVal = itemVal !== undefined ? itemVal : i;
+        }
+
+        let itemRecord = oldKeyMap.get(keyVal);
         if (itemRecord && itemRecord.nodes && itemRecord.nodes.length > 0) {
+          oldKeyMap.delete(keyVal);
           ${updateJS}
         } else {
-          itemRecord = { nodes: [], textBindings: {} };
+          itemRecord = { key: keyVal, nodes: [], textBindings: {} };
           ${createJS}
         }
 
-        for (const n of itemRecord.nodes) {
-          if (n && n.parentNode !== parent) {
-            parent.insertBefore(n, anchor);
-          }
-        }
+        itemRecord.key = keyVal;
+        newKeyMap.set(keyVal, itemRecord);
         newCache.push(itemRecord);
       }
 
-      for (let i = list.length; i < oldCache.length; i++) {
-        const oldRec = oldCache[i];
+      for (let i = 0; i < newCache.length; i++) {
+        const itemRecord = newCache[i];
+        const nextItemRecord = newCache[i + 1];
+        const refNode = (nextItemRecord && nextItemRecord.nodes && nextItemRecord.nodes[0]) || anchor;
+        for (const n of itemRecord.nodes) {
+          if (n && n.nextSibling !== refNode) {
+            parent.insertBefore(n, refNode);
+          }
+        }
+      }
+
+      for (const oldRec of oldKeyMap.values()) {
         if (oldRec && oldRec.nodes) {
           for (const n of oldRec.nodes) {
             if (n && n.parentNode === parent) {
@@ -432,7 +451,7 @@ export class DriftJSGenerator {
         }
       }
 
-      vm._forCache.set(${anchorNodeIdx}, newCache);
+      vm._forCache.set(${anchorNodeIdx}, newKeyMap);
     `;
 
     const thunkFn = this.analyzer.createThunk(thunkCode);
@@ -495,6 +514,7 @@ export class DriftJSGenerator {
       const eventIdx = this.getConstant(event);
       const bindInstIdx = this.bytecode.length;
       this.emit(Opcodes.BIND_EVENT, nodeIdx, eventIdx, 0); 
+      this.emit24(Opcodes.CALL, 0);
       this.eventHandlers.push({ nodeIdx, eventIdx, handlerStr, bindInstIdx });
     }
 

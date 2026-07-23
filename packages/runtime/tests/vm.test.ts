@@ -330,6 +330,29 @@ describe('DriftJSClientVM', () => {
       vm.unmount();
     });
 
+    it('should perform keyed reconciliation when list items are prepended or reordered', async () => {
+      const template = '<script>let items = [{id: 1, text: "A"}, {id: 2, text: "B"}];</script><ul>for item, idx in items { <li>{item.text}</li> }</ul>';
+      const ast = parseTemplate(template);
+      const program = generate(ast);
+      const root = document.createElement('div');
+
+      const vm = interpret(program, root);
+      const liA = root.querySelectorAll('li')[0]!;
+      expect(liA.textContent).toBe('A');
+
+      (vm as any).registers[1] = [{id: 3, text: "C"}, {id: 1, text: "A"}, {id: 2, text: "B"}];
+      vm.markDirty(1);
+
+      await new Promise(resolve => setTimeout(resolve, 30));
+      const lis = root.querySelectorAll('li');
+      expect(lis.length).toBe(3);
+      expect(lis[0]!.textContent).toBe('C');
+      expect(lis[1]!.textContent).toBe('A');
+      expect(lis[1]).toBe(liA); // Existing DOM node for item.id 1 reused in-place!
+
+      vm.unmount();
+    });
+
     it('should hydrate server-rendered HTML and preserve reactivity without wiping DOM', async () => {
       const template = '<script>let count = 0; function inc() { count = count + 1; }</script><div><span>{count}</span><button onclick={inc}>+1</button></div>';
       const ast = parseTemplate(template);

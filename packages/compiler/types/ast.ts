@@ -4,6 +4,7 @@ export interface ForBlockNode {
   type: 'ForBlock';
   item: string;
   index?: string;
+  key?: string;
   iterable: string;
   body: ASTNode[];
 }

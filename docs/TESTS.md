@@ -12,10 +12,10 @@ This document provides a formal test specification matrix covering all 76 test c
 | **`@driftjs/compiler` (Parser)**    | `packages/compiler/tests/parser.test.ts`    |      15      |          0          |       15       |         ✅ 15 PASSED          |
 | **`@driftjs/compiler` (Analyzer)**  | `packages/compiler/tests/analyzer.test.ts`  |      8       |          0          |        8        |          ✅ 8 PASSED          |
 | **`@driftjs/compiler` (Generator)** | `packages/compiler/tests/generator.test.ts` |      5       |          0          |        5        |          ✅ 5 PASSED          |
-| **`@driftjs/runtime` (Client)**     | `packages/runtime/tests/vm.test.ts`         |      23      |          0          |       23       |         ✅ 23 PASSED          |
+| **`@driftjs/runtime` (Client)**     | `packages/runtime/tests/vm.test.ts`         |      24      |          0          |       24       |         ✅ 24 PASSED          |
 | **`@driftjs/runtime` (Server)**     | `packages/runtime/tests/server.test.ts`     |      9       |          0          |        9        |          ✅ 9 PASSED          |
 | **`@driftjs/vite-plugin`**          | `packages/vite-plugin/tests/plugin.test.ts` |      4       |          0          |        4        |          ✅ 4 PASSED          |
-| **Total Workspace**                   | **7 Test Suites**                       |    **76**    |        **0**        |     **76**     |   **76/76 PASSED (100%)**     |
+| **Total Workspace**                   | **7 Test Suites**                       |    **77**    |        **0**        |     **77**     |   **77/77 PASSED (100%)**     |
 
 ---
 
@@ -116,6 +116,7 @@ This document provides a formal test specification matrix covering all 76 test c
 | `TC-VM-021` | SSR Hydration      | Hydrate server-rendered HTML and preserve reactivity without wiping DOM | `hydrate(program, root)`                                  | Attaches reactivity to pre-rendered HTML without wiping DOM elements                       |  ✅ PASSED  |
 | `TC-VM-022` | Security           | Reject unallowed property keys in `SET_PROPERTY`                         | `SET_PROPERTY` with `innerHTML`                           | Throws `Security Violation` error for unallowed property mutations                         |  ✅ PASSED  |
 | `TC-VM-023` | Security           | Block `javascript:` URIs and `on*` attributes in `SET_ATTRIBUTE`          | `SET_ATTRIBUTE` with `javascript:alert(1)`                | Throws `Security Violation` error for dangerous attribute values                           |  ✅ PASSED  |
+| `TC-VM-024` | Optimization       | Perform $O(N)$ keyed DOM node reconciliation on list items               | Prepend item `{id: 3}` to list `[{id: 1}, {id: 2}]`       | Reuses existing DOM nodes for `{id: 1}` and `{id: 2}` in-place without re-creating elements |  ✅ PASSED  |
 
 ---
 
