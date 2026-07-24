@@ -456,245 +456,38 @@ export class DriftJSGenerator {
   const { createJS, updateJS } = this.compileForBodyToJS(node.body, node.item, node.index);
 
   const thunkCode = `
-    function getSequence(arr) {
-      const p = new Int32Array(arr.length);
-      const result = [];
-      let u, v, c;
-      const len = arr.length;
-      for (let i = 0; i < len; i++) {
-        const arrI = arr[i];
-        if (arrI !== -1) {
-          const lastIdx = result[result.length - 1];
-          if (result.length === 0 || arr[lastIdx] < arrI) {
-            p[i] = result.length > 0 ? lastIdx : -1;
-            result.push(i);
-            continue;
-          }
-          u = 0;
-          v = result.length - 1;
-          while (u < v) {
-            c = (u + v) >> 1;
-            if (arr[result[c]] < arrI) {
-              u = c + 1;
-            } else {
-              v = c;
-            }
-          }
-          if (arrI < arr[result[u]]) {
-            if (u > 0) {
-              p[i] = result[u - 1];
-            }
-            result[u] = i;
-          }
-        }
-      }
-      let uLen = result.length;
-      if (uLen === 0) return [];
-      let vIdx = result[uLen - 1];
-      while (uLen-- > 0) {
-        result[uLen] = vIdx;
-        vIdx = p[vIdx];
-      }
-      return result;
-    }
-
-    const _nodes = (vm && vm.nodes) || (typeof nodes !== 'undefined' ? nodes : null);
     const list = (${iterableRewritten}) || [];
-    const parent = (_nodes && _nodes[${parentNodeIdx}]) || (vm && vm.rootElement) || (typeof document !== 'undefined' ? document.body : null);
-    const anchor = _nodes && _nodes[${anchorNodeIdx}];
-    if (!parent || !anchor) return;
-    if (anchor.parentNode !== parent) {
-      parent.appendChild(anchor);
-    }
-
-    if (!vm) vm = {};
-    if (!vm._forCache) vm._forCache = new Map();
-    const oldCache = vm._forCache.get(${anchorNodeIdx}) || [];
-    const newCache = [];
-    const newKeySet = new Set();
-
     const itemVar = ${JSON.stringify(node.item)};
     const indexVar = ${JSON.stringify(node.index || null)};
 
-    for (let i = 0; i < list.length; i++) {
-      const itemVal = list[i];
-      const indexVal = i;
+    const getKey = (itemVal, indexVal, scope) => {
       const ${node.item} = itemVal;
       ${node.index ? `const ${node.index} = indexVal;` : ''}
-      const scope = { [itemVar]: itemVal };
-      if (indexVar) scope[indexVar] = indexVal;
-
-      let rawKeyVal;
       if (${keyRewritten ? 'true' : 'false'}) {
-        rawKeyVal = (${keyRewritten});
+        return (${keyRewritten});
       } else if (itemVal !== null && typeof itemVal === 'object') {
-        rawKeyVal = itemVal.id !== undefined ? itemVal.id : (itemVal.key !== undefined ? itemVal.key : (itemVal._id !== undefined ? itemVal._id : i));
-      } else {
-        rawKeyVal = itemVal !== undefined ? itemVal : i;
+        return itemVal.id !== undefined ? itemVal.id : (itemVal.key !== undefined ? itemVal.key : (itemVal._id !== undefined ? itemVal._id : indexVal));
       }
+      return itemVal !== undefined ? itemVal : indexVal;
+    };
 
-      let keyVal = rawKeyVal;
-      let dupIdx = 0;
-      while (newKeySet.has(keyVal)) {
-        dupIdx++;
-        keyVal = String(rawKeyVal) + '__dup_' + dupIdx;
-      }
-      newKeySet.add(keyVal);
-
-      newCache.push({ key: keyVal, itemVal, indexVal, scope });
-    }
-
-    const oldLen = oldCache.length;
-    const newLen = newCache.length;
-    let i = 0;
-    let oldEnd = oldLen - 1;
-    let newEnd = newLen - 1;
-
-    // 1. Sync prefix
-    while (i <= oldEnd && i <= newEnd && oldCache[i].key === newCache[i].key) {
-      const oldRec = oldCache[i];
-      const newItem = newCache[i];
-      const itemVal = newItem.itemVal;
-      const indexVal = newItem.indexVal;
-      const scope = newItem.scope;
+    const createItem = (itemVal, indexVal, scope, parent, refNode) => {
       const ${node.item} = itemVal;
       ${node.index ? `const ${node.index} = indexVal;` : ''}
-      const itemRecord = oldRec;
-      itemRecord.scope = scope;
-      ${updateJS}
-      newCache[i] = itemRecord;
-      i++;
-    }
+      const itemRecord = { key: null, nodes: [], textBindings: {}, elementMap: {}, scope, itemVal, indexVal };
+      ${createJS}
+      return itemRecord;
+    };
 
-    // 2. Sync suffix
-    while (i <= oldEnd && i <= newEnd && oldCache[oldEnd].key === newCache[newEnd].key) {
-      const oldRec = oldCache[oldEnd];
-      const newItem = newCache[newEnd];
-      const itemVal = newItem.itemVal;
-      const indexVal = newItem.indexVal;
-      const scope = newItem.scope;
+    const updateItem = (itemRecord, itemVal, indexVal, scope) => {
       const ${node.item} = itemVal;
       ${node.index ? `const ${node.index} = indexVal;` : ''}
-      const itemRecord = oldRec;
-      itemRecord.scope = scope;
       ${updateJS}
-      newCache[newEnd] = itemRecord;
-      oldEnd--;
-      newEnd--;
+    };
+
+    if (vm && typeof vm.reconcileKeyedList === 'function') {
+      vm.reconcileKeyedList(vm, ${anchorNodeIdx}, ${parentNodeIdx}, list, itemVar, indexVar, getKey, createItem, updateItem);
     }
-
-    // 3. Pure additions
-    if (i > oldEnd) {
-      if (i <= newEnd) {
-        const refNode = (newEnd + 1 < newLen) ? newCache[newEnd + 1].nodes[0] : anchor;
-        for (let k = i; k <= newEnd; k++) {
-          const newItem = newCache[k];
-          const itemVal = newItem.itemVal;
-          const indexVal = newItem.indexVal;
-          const scope = newItem.scope;
-          const ${node.item} = itemVal;
-          ${node.index ? `const ${node.index} = indexVal;` : ''}
-          const itemRecord = { key: newItem.key, nodes: [], textBindings: {}, elementMap: {}, scope: scope, itemVal: itemVal };
-          ${createJS}
-          newCache[k] = itemRecord;
-        }
-      }
-    }
-    // 4. Pure deletions
-    else if (i > newEnd) {
-      for (let k = i; k <= oldEnd; k++) {
-        const oldRec = oldCache[k];
-        for (let nIdx = 0; nIdx < oldRec.nodes.length; nIdx++) {
-          const n = oldRec.nodes[nIdx];
-          if (n && n.parentNode) {
-            n.parentNode.removeChild(n);
-          }
-        }
-      }
-    }
-    // 5. Complex keyed reconciliation with LIS
-    else {
-      const s1 = i;
-      const e1 = newEnd;
-      const s2 = i;
-      const e2 = oldEnd;
-
-      const keyToNewIndexMap = new Map();
-      for (let k = s1; k <= e1; k++) {
-        keyToNewIndexMap.set(newCache[k].key, k);
-      }
-
-      const unhandledNewCount = e1 - s1 + 1;
-      const sources = new Int32Array(unhandledNewCount);
-      for (let k = 0; k < unhandledNewCount; k++) sources[k] = -1;
-
-      let patched = 0;
-      let moved = false;
-      let maxIndexSoFar = 0;
-
-      for (let k = s2; k <= e2; k++) {
-        const oldRec = oldCache[k];
-        const newIndex = keyToNewIndexMap.get(oldRec.key);
-        if (newIndex === undefined) {
-          for (let nIdx = 0; nIdx < oldRec.nodes.length; nIdx++) {
-            const n = oldRec.nodes[nIdx];
-            if (n && n.parentNode) {
-              n.parentNode.removeChild(n);
-            }
-          }
-        } else {
-          const newIndexInSources = newIndex - s1;
-          sources[newIndexInSources] = k;
-          if (newIndex >= maxIndexSoFar) {
-            maxIndexSoFar = newIndex;
-          } else {
-            moved = true;
-          }
-          const newItem = newCache[newIndex];
-          const itemVal = newItem.itemVal;
-          const indexVal = newItem.indexVal;
-          const scope = newItem.scope;
-          const ${node.item} = itemVal;
-          ${node.index ? `const ${node.index} = indexVal;` : ''}
-          const itemRecord = oldRec;
-          ${updateJS}
-          newCache[newIndex] = itemRecord;
-          patched++;
-        }
-      }
-
-      const lis = moved ? getSequence(sources) : [];
-      let lisIdx = lis.length - 1;
-
-      for (let j = unhandledNewCount - 1; j >= 0; j--) {
-        const newIndex = s1 + j;
-        const newItem = newCache[newIndex];
-        const refNode = (newIndex + 1 < newLen) ? newCache[newIndex + 1].nodes[0] : anchor;
-
-        if (sources[j] === -1) {
-          const itemVal = newItem.itemVal;
-          const indexVal = newItem.indexVal;
-          const scope = newItem.scope;
-          const ${node.item} = itemVal;
-          ${node.index ? `const ${node.index} = indexVal;` : ''}
-          const itemRecord = { key: newItem.key, nodes: [], textBindings: {}, elementMap: {} };
-          ${createJS}
-          newCache[newIndex] = itemRecord;
-        } else if (moved) {
-          if (lisIdx < 0 || j !== lis[lisIdx]) {
-            const itemRecord = newCache[newIndex];
-            for (let nIdx = 0; nIdx < itemRecord.nodes.length; nIdx++) {
-              const n = itemRecord.nodes[nIdx];
-              if (n) parent.insertBefore(n, refNode);
-            }
-          } else {
-            lisIdx--;
-          }
-        }
-      }
-    }
-
-    vm._forCache.set(${anchorNodeIdx}, newCache);
   `;
 
   const thunkFn = this.analyzer.createThunk(thunkCode);
@@ -731,13 +524,21 @@ export class DriftJSGenerator {
       if (valStr.startsWith('{') && valStr.endsWith('}')) {
         const expr = valStr.slice(1, -1).trim();
         const { rewritten, depMask } = this.analyzer.rewriteExpression(expr);
-        const thunkFn = this.analyzer.createThunk(`return ${rewritten}`);
-        const thunkIdx = this.getConstant(thunkFn);
-        const reg = this.nextRegIdx++;
-        
-        this.emit(Opcodes.EXEC_THUNK, reg, thunkIdx);
-        this.emit(setOpcode, nodeIdx, keyIdx, reg);
-        this.updates.push({ nodeIdx, reg, thunkIdx, depMask, attrKeyIdx: keyIdx, isProperty });
+        const directMatch = /^regs\[(\d+)\]$/.exec(rewritten.trim());
+
+        if (directMatch) {
+          const directReg = parseInt(directMatch[1]!, 10);
+          this.emit(setOpcode, nodeIdx, keyIdx, directReg);
+          this.updates.push({ nodeIdx, reg: directReg, thunkIdx: 255, depMask, attrKeyIdx: keyIdx, isProperty });
+        } else {
+          const thunkFn = this.analyzer.createThunk(`return ${rewritten}`);
+          const thunkIdx = this.getConstant(thunkFn);
+          const reg = this.nextRegIdx++;
+          
+          this.emit(Opcodes.EXEC_THUNK, reg, thunkIdx);
+          this.emit(setOpcode, nodeIdx, keyIdx, reg);
+          this.updates.push({ nodeIdx, reg, thunkIdx, depMask, attrKeyIdx: keyIdx, isProperty });
+        }
       } else {
         const valIdx = this.getConstant(value);
         const reg = this.nextRegIdx++;
@@ -780,8 +581,16 @@ export class DriftJSGenerator {
     this.emit(Opcodes.CREATE_TEXT, textIdx, nodeIdx);
 
     const { rewritten, depMask } = this.analyzer.rewriteExpression(node.expression);
+    const directMatch = /^regs\[(\d+)\]$/.exec(rewritten.trim());
+
+    if (directMatch) {
+      const directReg = parseInt(directMatch[1]!, 10);
+      this.emit(Opcodes.SET_TEXT, nodeIdx, directReg);
+      this.updates.push({ nodeIdx, reg: directReg, thunkIdx: 255, depMask });
+      return nodeIdx;
+    }
+
     const thunkFn = this.analyzer.createThunk(`return ${rewritten}`);
-    
     const thunkIdx = this.getConstant(thunkFn);
     const reg = this.nextRegIdx++;
 

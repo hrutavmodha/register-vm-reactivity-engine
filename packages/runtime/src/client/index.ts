@@ -1,5 +1,7 @@
 import { Opcodes } from '../isa.js';
 import type { Opcode, VMProgram, DriftJSComponent } from '../../types/index.js';
+import { reconcileKeyedList, type ItemRecord } from './reconciler.js';
+export { reconcileKeyedList, type ItemRecord };
 
 const ALLOWED_PROPERTIES = new Set(['value', 'checked', 'disabled', 'indeterminate', 'selected', 'readOnly', 'hidden']);
 
@@ -36,6 +38,8 @@ export class DriftJSClientVM {
   
   private eventDelegationTable: Map<string, number>;
   private registeredEvents: Map<string, (e: Event) => void>;
+
+  public readonly reconcileKeyedList = reconcileKeyedList;
 
   /**
    * Initializes a new VM instance.
@@ -157,6 +161,10 @@ export class DriftJSClientVM {
           const reg = a;
           const thunkIdx = b;
           const depMask = c;
+
+          if (thunkIdx === 255) {
+            break;
+          }
 
           if (depMask !== 0 && (this.dirtyMask & depMask) === 0) {
             break;

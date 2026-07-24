@@ -88,6 +88,9 @@ export class DriftJSServerVM {
         case Opcodes.EXEC_THUNK: {
           const reg = a;
           const thunkIdx = b;
+          if (thunkIdx === 255) {
+            break;
+          }
           let thunk = this.constants[thunkIdx];
           if (typeof thunk === 'string') {
             thunk = compileThunkString(thunk);

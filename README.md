@@ -4,8 +4,8 @@
 
 > [!IMPORTANT]
 > **Project Status**
-> DriftJS is currently in an **early experimental stage**, *and not yet production-ready.*
-> The core bytecode architecture, register VM, and AOT compiler foundation are not functional. But, I warmly invite the open-source community to collaborate, test, and help evolve DriftJS into a production-grade framework!
+> DriftJS is currently in an **early experimental stage**, _and not yet production-ready._
+> The core bytecode architecture, register VM, and AOT compiler foundation _may not be_ functional. But, I warmly invite the open-source community to collaborate, test, and help evolve DriftJS into a production-grade framework!
 
 ---
 

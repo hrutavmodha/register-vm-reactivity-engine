@@ -97,7 +97,7 @@ describe('DriftJSGenerator', () => {
       // so 'tr' and 'td' appear inside the thunk function source, not
       // as separate constants pool entries.
       const forThunk = program.constants.find(
-        c => typeof c === 'string' && c.includes('getSequence')
+        c => typeof c === 'string' && c.includes('reconcileKeyedList')
       );
       expect(forThunk).toBeDefined();
       const thunkSrc = forThunk as string;
